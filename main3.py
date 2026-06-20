@@ -427,7 +427,7 @@ def exporter_json(r, chemin):
 # Config & main
 # ---------------------------------------------------------------------------
 
-CHEMIN_GRAPHE = "montreal.graphml"
+CHEMIN_GRAPHE = "verdun.graphml"
 COUT_MAX      = None
 EXPORT_JSON   = "resultat.json"
 
@@ -458,15 +458,17 @@ def suggerer_depots(G, n, max_iter=30):
     coords = np.array([[G.nodes[nd]["lat"], G.nodes[nd]["lon"]] for nd in nodes])
     node_tree = cKDTree(coords)
 
-    # Représente chaque arête par son point milieu
-    aretes = list(G.edges())
-    if not aretes:
-        return nodes[:n]
+    aretes_p1 = [(u, v) for u, v in G.edges() if G.edges[u, v].get("priorite", 3) == 1]
+    
+    # Fallback de sécurité : si aucune arête P1 n'est trouvée (ex: bug de tag), on prend tout
+    if not aretes_p1:
+        print("    [Alerte] Aucune arête P1 trouvée, placement des dépôts sur l'ensemble du graphe.")
+        aretes_p1 = list(G.edges())
 
     milieux = np.array([
         [(G.nodes[u]["lat"] + G.nodes[v]["lat"]) / 2,
          (G.nodes[u]["lon"] + G.nodes[v]["lon"]) / 2]
-        for u, v in aretes
+        for u, v in aretes_p1
     ])
 
     # Initialisation : k-means++ pour éviter les clusters déséquilibrés dès le départ
@@ -478,7 +480,10 @@ def suggerer_depots(G, n, max_iter=30):
             axis=1
         ) ** 2
         proba = d2 / d2.sum()
-        centres.append(milieux[rng.choice(len(milieux), p=proba)])
+        if proba.sum() == 0:
+            centres.append(milieux[rng.choice(rng.integers(len(milieux)), p=proba)])
+        else:
+            centres.append(milieux[rng.choice(len(milieux), p=proba)])
     centres = np.array(centres)
 
     # Itérations k-means
@@ -566,6 +571,44 @@ def _etape(label, t0):
     print(f"  [{dt:6.2f}s]  {label}")
 
 
+def construire_scenario_geometrique(G, coords_hopitaux, nb_quartiers_denses=3):
+    """
+    Crée un scénario 1 basé sur la géométrie : relie des POIs manuels
+    aux quartiers les plus denses du graphe.
+    """
+    print("\n  [Génération] Construction géométrique du Scénario 1...")
+    
+    # Étape 1 : Initialiser tout le graphe en Priorité 3 (résidentiel par défaut)
+    for u, v in G.edges():
+        G[u][v]["priorite"] = 3
+
+    # Étape 2 : Snapper les hôpitaux sur le graphe
+    noeuds_hopitaux = []
+    for lat, lon in coords_hopitaux:
+        noeud = estimer_depot(G, lat, lon)["node_id"]
+        noeuds_hopitaux.append(noeud)
+        
+    # Étape 3 : Trouver les centres des "quartiers denses" 
+    # On réutilise ton algorithme K-means qui converge vers les zones denses en arêtes
+    centres_denses = suggerer_depots(G, nb_quartiers_denses)
+    
+    # Étape 4 : Tracer les routes vitales (Priorité 1) via Dijkstra
+    aretes_p1 = set()
+    for hopital in noeuds_hopitaux:
+        for centre in centres_denses:
+            # Dijkstra_path est déjà dans ton code
+            chemin = _dijkstra_path(G, hopital, centre)
+            if chemin:
+                # Marquer chaque segment du chemin en Priorité 1
+                for i in range(len(chemin) - 1):
+                    u, v = chemin[i], chemin[i+1]
+                    if G.has_edge(u, v):
+                        G[u][v]["priorite"] = 1
+                        aretes_p1.add((u, v))
+                        
+    print(f"  -> {len(noeuds_hopitaux)} hôpitaux reliés à {len(centres_denses)} centres denses.")
+    print(f"  -> {len(aretes_p1)} arêtes marquées en Priorité 1.")
+
 def main():
     T_GLOBAL = time.perf_counter()
     SEP  = "═" * 72
@@ -577,6 +620,10 @@ def main():
     print(SEP2)
     t = time.perf_counter()
     G = charger_graphe(CHEMIN_GRAPHE)
+    
+    hopitaux_coords = [(45.495, -73.578)]  # Hôpital de Verdun
+    construire_scenario_geometrique(G, hopitaux_coords, nb_quartiers_denses=3)
+    
     _etape(f"{G.number_of_nodes()} nœuds  |  {G.number_of_edges()} arcs", t)
 
     # ── 2. Sélection des dépôts (scénarios 1 / 3 / 10) ────────────────────
@@ -584,8 +631,10 @@ def main():
     print("  ÉTAPE 2 / 3  —  Sélection optimale des dépôts (k-center greedy)")
     print(SEP2)
 
-    scenarios_depots = [15, 25, 35,50]
+    scenarios_depots = [1, 3, 5]
     depots_par_n = {}
+
+    
 
     for n in scenarios_depots:
         t = time.perf_counter()
@@ -598,7 +647,7 @@ def main():
     print("  ÉTAPE 3 / 3  —  Solveur CPP  ×  scénarios")
     print(SEP2)
 
-    scenarios_temps = [12.0, 10.0, 8.0]
+    scenarios_temps = [12.0, 8.0, 5.0]
 
     # Tableau des résultats : clé = (n_depots, tmax)
     tous_resultats = {}
