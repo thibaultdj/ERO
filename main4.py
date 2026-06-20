@@ -23,6 +23,10 @@ HOPITAUX_COORDS = [
     (45.495, -73.578),  # Hôpital de Verdun
 ]
 
+CENTRES_COMMERCIAUX_COORDS = [
+    (45.496, -73.570),  # exemple — à remplacer par vos coordonnées
+]
+
 
 # ── Chronomètre ───────────────────────────────────────────────────────────────
 
@@ -111,28 +115,30 @@ def noeud_le_plus_proche(G, lat, lon):
 
 # ── Scénarios ─────────────────────────────────────────────────────────────────
 
-def appliquer_scenario_base(G):
-    for u, v in G.edges():
-        G[u][v]["priorite"] = 3
+def appliquer_scenario_geographique(G, coords_points, nb_centres=3, label="points"):
+    """
+    Marque en P1 les arêtes sur les chemins entre chaque point d'intérêt
+    (hôpital, centre commercial, etc.) et les nb_centres dépôts les plus centraux.
+    Ces arêtes P1 guident ensuite suggerer_depots() via _aretes_reference().
 
-
-def appliquer_scenario_hopitaux(G, coords_hopitaux, nb_centres=3):
-    appliquer_scenario_base(G)
-
-    noeuds_hopitaux = [noeud_le_plus_proche(G, lat, lon) for lat, lon in coords_hopitaux]
-    centres         = suggerer_depots(G, nb_centres)
+    coords_points : list[(lat, lon)]
+    nb_centres    : nombre de dépôts de référence pour tracer les chemins
+    label         : nom affiché dans les logs
+    """
+    noeuds  = [noeud_le_plus_proche(G, lat, lon) for lat, lon in coords_points]
+    centres = suggerer_depots(G, nb_centres)
 
     aretes_p1 = set()
-    for hopital in noeuds_hopitaux:
+    for pt in noeuds:
         for centre in centres:
-            chemin = _dijkstra_path(G, hopital, centre)
+            chemin = _dijkstra_path(G, pt, centre)
             if chemin:
                 for u, v in zip(chemin[:-1], chemin[1:]):
                     if G.has_edge(u, v):
                         G[u][v]["priorite"] = 1
                         aretes_p1.add((u, v))
 
-    print(f"    {len(noeuds_hopitaux)} hôpitaux → {len(centres)} centres  "
+    print(f"    {len(noeuds)} {label} → {len(centres)} centres  "
           f"|  {len(aretes_p1)} arêtes P1 marquées")
 
 
@@ -527,15 +533,20 @@ SCENARIOS_TEMPS  = [12.0, 8.0, 5.0]
 
 
 def lancement_scenario0(G):
-    print("\n  ► Scénario 0 — Base (toutes les rues, priorité uniforme)")
-    appliquer_scenario_base(G)
+    print("\n  ► Scénario 0 — Base (dépôts sur axes principaux)")
     lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export="s0")
 
 
 def lancement_scenario1(G):
     print("\n  ► Scénario 1 — Prioritisation des hôpitaux")
-    appliquer_scenario_hopitaux(G, HOPITAUX_COORDS, nb_centres=3)
+    appliquer_scenario_geographique(G, HOPITAUX_COORDS, nb_centres=3, label="hôpitaux")
     lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export="s1")
+
+
+def lancement_scenario2(G):
+    print("\n  ► Scénario 2 — Prioritisation des centres commerciaux")
+    appliquer_scenario_geographique(G, CENTRES_COMMERCIAUX_COORDS, nb_centres=3, label="centres commerciaux")
+    lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export="s2")
 
 
 def main():
@@ -553,6 +564,7 @@ def main():
     # ── Choisissez les scénarios à lancer ────────────────────────────────────
     lancement_scenario0(G)
     lancement_scenario1(G)
+    lancement_scenario2(G)
     # ─────────────────────────────────────────────────────────────────────────
 
     _chrono.rapport()
