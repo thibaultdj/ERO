@@ -1,4 +1,7 @@
+import argparse
+import io
 import json
+import sys
 import time
 import numpy as np
 import networkx as nx
@@ -15,17 +18,125 @@ COUT_HORAIRE_SUPP   = 1.3
 SEUIL_H             = 8.0
 VITESSE_KMH         = 10.0
 
-CHEMIN_GRAPHE = "verdun.graphml"
-COUT_MAX      = None
-EXPORT_JSON   = "resultat.json"
+COUT_MAX    = None
+EXPORT_JSON = "resultat.json"
 
-HOPITAUX_COORDS = [
-    (45.495, -73.578),  # Hôpital de Verdun
-]
+# ── POIs par arrondissement ────────────────────────────────────────────────────
+# Scénario 1 — Services de santé (hôpitaux, CLSC, cliniques)
+HOPITAUX_COORDS = {
+    "verdun": [
+        (45.4637363, -73.5637627),  # Hôpital de Verdun
+        (45.4424837, -73.5860219),  # Institut Douglas
+        (45.4627389, -73.5691148),  # CLSC de Verdun
+        (45.4600730, -73.5761585),  # Clinique médicale du Sud-Ouest
+        (45.4627800, -73.5645142),  # Clinique Médico-chirurgicale de Verdun
+        (45.4637974, -73.5641022),  # Clinique universitaire CIUSSS
+    ],
+    "outremont": [
+        (45.5219,    -73.6139),     # CLSC Côte-des-Neiges
+        (45.5205,    -73.6089),     # Clinique medix
+    ],
+    "anjou": [
+        (45.6044719, -73.5474560),  # Résidence Anjou
+        (45.6060612, -73.5887727),  # Résidence Anjou sur le Lac
+        (45.6173831, -73.5477261),  # Centre Le Royer
+        (45.5959405, -73.5574116),  # Résidence Les Terrasses Versailles
+        (45.6143060, -73.5461589),  # Manoir Anjou
+        (45.6046656, -73.5526852),  # Uniprix
+        (45.6067135, -73.5849121),  # Brunet
+        (45.6119058, -73.5548945),  # Pharmacie Jean-Coutu
+    ],
+    "rdp": [
+        (45.6446480, -73.5858812),  # CLSC de Rivière-des-Prairies
+        (45.6664093, -73.4934196),  # CLSC de l'Est-de-Montréal
+        (45.6210548, -73.6092505),  # Maison alternative RDP
+        (45.6160837, -73.6039035),  # Centre d'hébergement Marie-Victorin
+        (45.6196838, -73.6051302),  # Pavillon Montfort
+        (45.6338141, -73.4928495),  # CHSLD Bourget
+        (45.6524839, -73.4884323),  # Centre Le Cardinal
+        (45.6448714, -73.5747314),  # Résidence Lionel-Bourdon
+    ],
+}
 
-CENTRES_COMMERCIAUX_COORDS = [
-    (45.496, -73.570),  # exemple — à remplacer par vos coordonnées
-]
+# Scénario 2 — Centres commerciaux et supermarchés
+COMMERCES_COORDS = {
+    "verdun": [
+        (45.4630146, -73.5693087),  # Fruiterie Soleil
+        (45.4644196, -73.5670048),  # Bulk Barn
+        (45.4514650, -73.5724283),  # Marché Tondreau
+        (45.4572232, -73.5719943),  # Marché C&C
+        (45.4596360, -73.5674360),  # Épicerie LOCO
+        (45.4553257, -73.5760819),  # IGA
+        (45.4715854, -73.5623140),  # Maxi
+        (45.4700904, -73.5634310),  # Canadian Tire
+        (45.4623792, -73.5641510),  # Metro
+    ],
+    "outremont": [
+        (45.5194351, -73.5949644),  # PA Nature Supermarché
+        (45.5243446, -73.6116384),  # Motty's
+        (45.5205138, -73.5986816),  # Supermarché PA du Parc
+        (45.5225184, -73.6025278),  # Lipa's
+        (45.5232428, -73.6049766),  # Épicerie Mile-End
+        (45.5206461, -73.6078241),  # Maxi
+    ],
+    "anjou": [
+        (45.6071188, -73.5848209),  # Metro
+        (45.6046037, -73.5515273),  # Metro
+        (45.6108868, -73.5776256),  # Mayrand Entrepôt
+        (45.6096018, -73.5833026),  # Giant Tiger
+        (45.5980400, -73.5676298),  # Halles d'Anjou
+        (45.5991693, -73.5597550),  # Marché Adonis
+    ],
+    "rdp": [
+        (45.6692647, -73.5069473),  # Metro
+        (45.6534038, -73.5093758),  # Maxi
+        (45.6552596, -73.5116643),  # Super C
+        (45.6274108, -73.5979569),  # Maxi
+        (45.6415101, -73.5025591),  # Metro
+        (45.6540402, -73.5130665),  # Walmart
+    ],
+}
+
+# Zones à forte densité de population (recensement StatCan 2021)
+DENSITE_COORDS = {
+    "verdun": [
+        (45.4662, -73.5665),  # Boul. Wellington / centre commercial
+        (45.4635, -73.5700),  # Rue Wellington / Verdun centre
+        (45.4600, -73.5760),  # Ave Monk / quartier dense
+        (45.4540, -73.5770),  # Rue Dupuis / sud Verdun
+    ],
+    "outremont": [
+        (45.5220, -73.6050),  # Ave Laurier Outremont
+        (45.5195, -73.6020),  # Ave Bernard / cœur Outremont
+        (45.5160, -73.6010),  # Ave Van Horne
+        (45.5230, -73.6130),  # Chemin Côte-Sainte-Catherine
+        (45.5100, -73.6150),  # Ave Ducharme / sud Outremont
+    ],
+    "anjou": [
+        (45.6050, -73.5600),  # Boul. des Roseraies / centre Anjou
+        (45.6100, -73.5700),  # Boul. Joseph-Renaud
+        (45.6150, -73.5500),  # Boul. Métropolitain / nord Anjou
+        (45.5980, -73.5500),  # Ave Beaumont / sud Anjou
+        (45.6200, -73.5700),  # Boul. Maurice-Duplessis
+        (45.6080, -73.5850),  # Boul. Ray-Lawson
+    ],
+    "rdp": [
+        (45.6300, -73.6050),  # Boul. Perras / RDP ouest dense
+        (45.6400, -73.5800),  # Boul. Lacordaire / RDP centre
+        (45.6500, -73.5600),  # Boul. Maurice-Duplessis
+        (45.6600, -73.5400),  # Rue Sherbrooke Est
+        (45.6650, -73.5100),  # Boul. Saint-Jean-Baptiste / PAT
+        (45.6750, -73.5000),  # Ave Dubuisson / Pointe-aux-Trembles
+    ],
+}
+
+# Mapping graphml → clé POI
+GRAPHES = {
+    "verdun.graphml":    "verdun",
+    "outremont.graphml": "outremont",
+    "anjou.graphml":     "anjou",
+    "rdp.graphml":       "rdp",
+}
 
 
 # ── Chronomètre ───────────────────────────────────────────────────────────────
@@ -59,7 +170,8 @@ class Chrono:
         print("─" * 60 + "\n")
 
 
-_chrono = Chrono()
+_chrono  = Chrono()
+_VERBOSE = True
 
 
 # ── Dataclasses ───────────────────────────────────────────────────────────────
@@ -115,31 +227,44 @@ def noeud_le_plus_proche(G, lat, lon):
 
 # ── Scénarios ─────────────────────────────────────────────────────────────────
 
-def appliquer_scenario_geographique(G, coords_points, nb_centres=3, label="points"):
+def construire_corridors(G, poi_coords, dense_coords):
     """
-    Marque en P1 les arêtes sur les chemins entre chaque point d'intérêt
-    (hôpital, centre commercial, etc.) et les nb_centres dépôts les plus centraux.
-    Ces arêtes P1 guident ensuite suggerer_depots() via _aretes_reference().
+    Marque en P1 les arêtes sur les plus courts chemins entre chaque POI
+    (hôpital, commerce) et chaque zone à forte densité de population.
 
-    coords_points : list[(lat, lon)]
-    nb_centres    : nombre de dépôts de référence pour tracer les chemins
-    label         : nom affiché dans les logs
+    Étapes :
+      1. Remet toutes les arêtes en priorité 3 (reset propre entre scénarios)
+      2. Snappe chaque coordonnée sur le nœud routier le plus proche
+      3. Trace le chemin Dijkstra POI → zone dense et marque en P1
+
+    poi_coords   : list[(lat, lon)] — services de santé ou commerces
+    dense_coords : list[(lat, lon)] — zones à forte densité de population
+    label        : nom affiché dans les logs
     """
-    noeuds  = [noeud_le_plus_proche(G, lat, lon) for lat, lon in coords_points]
-    centres = suggerer_depots(G, nb_centres)
+    # Reset priorités
+    for u, v in G.edges():
+        G[u][v]["priorite"] = 3
+
+    if not poi_coords or not dense_coords:
+        print(f"    [Alerte] Liste vide pour {label} — toutes les arêtes restent P3")
+        return
+
+    noeuds_poi   = [noeud_le_plus_proche(G, lat, lon) for lat, lon in poi_coords]
+    noeuds_dense = [noeud_le_plus_proche(G, lat, lon) for lat, lon in dense_coords]
 
     aretes_p1 = set()
-    for pt in noeuds:
-        for centre in centres:
-            chemin = _dijkstra_path(G, pt, centre)
+    for poi in noeuds_poi:
+        for dense in noeuds_dense:
+            chemin = _dijkstra_path(G, poi, dense)
             if chemin:
                 for u, v in zip(chemin[:-1], chemin[1:]):
                     if G.has_edge(u, v):
                         G[u][v]["priorite"] = 1
                         aretes_p1.add((u, v))
 
-    print(f"    {len(noeuds)} {label} → {len(centres)} centres  "
-          f"|  {len(aretes_p1)} arêtes P1 marquées")
+    if _VERBOSE:
+        print(f"    {len(noeuds_poi)} POIs × {len(noeuds_dense)} zones denses "
+              f"→ {len(aretes_p1)} arêtes P1 marquées")
 
 
 # ── Dépôts ────────────────────────────────────────────────────────────────────
@@ -411,7 +536,8 @@ def partitionner(G, depots):
     tailles = [len(v) for v in secteurs.values()]
     mini, maxi = min(tailles), max(tailles)
     ratio = maxi / mini if mini > 0 else float("inf")
-    print(f"    Secteurs : min={mini}  moy={np.mean(tailles):.0f}  max={maxi}  ratio={ratio:.1f}x")
+    if _VERBOSE:
+        print(f"    Secteurs : min={mini}  moy={np.mean(tailles):.0f}  max={maxi}  ratio={ratio:.1f}x")
 
     _chrono.fin("partitionner")
     return secteurs
@@ -424,7 +550,8 @@ def executer(G, depots, temps_max=None, cout_max=None):
 
     tournees = []
     for depot, aretes in secteurs.items():
-        print(f"  → Secteur {depot} : {len(aretes)} arêtes…")
+        if _VERBOSE:
+            print(f"  → Secteur {depot} : {len(aretes)} arêtes…")
         tournees.extend(planifier_secteur(G, depot, aretes, temps_max))
 
     cout  = sum(t.cout_total for t in tournees)
@@ -528,25 +655,36 @@ def lancer_scenarios(G, scenarios_depots, scenarios_temps, tag_export):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-SCENARIOS_DEPOTS = [1, 3, 5]
+SCENARIOS_DEPOTS = [3, 5]
 SCENARIOS_TEMPS  = [12.0, 8.0, 5.0]
 
 
-def lancement_scenario0(G):
-    print("\n  ► Scénario 0 — Base (dépôts sur axes principaux)")
-    lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export="s0")
+def lancement_scenario0(G, cle):
+    print(f"\n  ► Scénario 0 — Base (aucune priorisation, référence)")
+    # Reset : toutes les arêtes en P3
+    for u, v in G.edges():
+        G[u][v]["priorite"] = 3
+    lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s0")
 
 
-def lancement_scenario1(G):
-    print("\n  ► Scénario 1 — Prioritisation des hôpitaux")
-    appliquer_scenario_geographique(G, HOPITAUX_COORDS, nb_centres=3, label="hôpitaux")
-    lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export="s1")
+def lancement_scenario1(G, cle):
+    print(f"\n  ► Scénario 1 — Accès aux services de santé")
+    construire_corridors(
+        G,
+        poi_coords   = HOPITAUX_COORDS.get(cle, []),
+        dense_coords = DENSITE_COORDS.get(cle, []),
+    )
+    lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s1")
 
 
-def lancement_scenario2(G):
-    print("\n  ► Scénario 2 — Prioritisation des centres commerciaux")
-    appliquer_scenario_geographique(G, CENTRES_COMMERCIAUX_COORDS, nb_centres=3, label="centres commerciaux")
-    lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export="s2")
+def lancement_scenario2(G, cle):
+    print(f"\n  ► Scénario 2 — Impact économique (centres commerciaux)")
+    construire_corridors(
+        G,
+        poi_coords   = COMMERCES_COORDS.get(cle, []),
+        dense_coords = DENSITE_COORDS.get(cle, []),
+    )
+    lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s2")
 
 
 def main():
@@ -554,23 +692,161 @@ def main():
     SEP      = "═" * 72
     SEP2     = "─" * 72
 
-    print(f"\n{SEP}")
-    print("  ÉTAPE 1 / 3  —  Chargement du graphe")
-    print(SEP2)
-    t = time.perf_counter()
-    G = charger_graphe(CHEMIN_GRAPHE)
-    _etape(f"{G.number_of_nodes()} nœuds  |  {G.number_of_edges()} arcs", t)
+    for graphml, cle in GRAPHES.items():
+        print(f"\n{SEP}")
+        print(f"  ARRONDISSEMENT : {cle.upper()}")
+        print(SEP2)
 
-    # ── Choisissez les scénarios à lancer ────────────────────────────────────
-    lancement_scenario0(G)
-    lancement_scenario1(G)
-    lancement_scenario2(G)
-    # ─────────────────────────────────────────────────────────────────────────
+        t = time.perf_counter()
+        G = charger_graphe(graphml)
+        _etape(f"{G.number_of_nodes()} nœuds  |  {G.number_of_edges()} arcs", t)
+
+        lancement_scenario1(G, cle)
+        lancement_scenario2(G, cle)
 
     _chrono.rapport()
     _etape("TOTAL GLOBAL", T_GLOBAL)
     print()
 
 
+# ── Mode démo CLI ─────────────────────────────────────────────────────────────
+
+DEPOTS_OPTIMAUX = {"verdun": 3, "outremont": 3, "anjou": 3, "rdp": 5}
+TMAX_OPTIMAL    = 8.0
+
+SCENARIO_LABELS = {
+    1: "Accès aux services de santé",
+    2: "Impact économique (centres commerciaux)",
+}
+
+SCENARIO_POI = {
+    1: HOPITAUX_COORDS,
+    2: COMMERCES_COORDS,
+}
+
+
+def _percentile_timing(tournees, G, priorite_cible):
+    """Retourne les temps (h) auxquels chaque arête de priorité donnée est déneigée,
+    toutes tournées tournant en parallèle depuis t=0."""
+    temps_list = []
+    for t in tournees:
+        seq = t.sequence
+        cumul_s = 0.0
+        for u, v in zip(seq[:-1], seq[1:]):
+            lng = G[u][v].get("length", 0.0) if G.has_edge(u, v) else 0.0
+            cumul_s += (lng / 1000.0) / VITESSE_KMH * 3600
+            if G.has_edge(u, v) and G[u][v].get("priorite", 3) == priorite_cible:
+                temps_list.append(cumul_s / 3600)
+    return sorted(temps_list)
+
+
+def _fmt_pct(vals, nb_aretes):
+    if not vals:
+        return "—"
+    p50 = np.percentile(vals, 50)
+    p90 = np.percentile(vals, 90)
+    p100 = vals[-1]
+    return f"P50={p50:.2f}h, P90={p90:.2f}h, P100={p100:.2f}h  ({nb_aretes} arcs)"
+
+
+def mode_demo(sector, scenario_num):
+    T0     = time.perf_counter()
+    SEP1   = "=" * 60
+    SEP2   = "─" * 60
+
+    buf = io.StringIO()
+
+    def out(line=""):
+        print(line)
+        buf.write(line + "\n")
+
+    graphml = f"{sector}.graphml"
+    cle     = sector
+
+    out(SEP1)
+    out(f"Secteur : {sector.capitalize()}")
+    out(SEP1)
+
+    G = charger_graphe(graphml)
+    nb_noeuds = G.number_of_nodes()
+    nb_arcs   = G.number_of_edges()
+    dist_tot  = sum(d.get("length", 0.0) for _, _, d in G.edges(data=True)) / 1000
+    noeuds_impairs = sum(
+        1 for n in G.nodes()
+        if G.out_degree(n) != G.in_degree(n)
+    )
+    out(f"  Statistiques {sector.capitalize()}: {nb_noeuds} nœuds, {nb_arcs} arcs, "
+        f"{dist_tot:.1f} km, {noeuds_impairs} nœuds impairs")
+
+    # Corridors prioritaires + CPP (silencieux)
+    global _VERBOSE
+    _VERBOSE = False
+    poi_dict = SCENARIO_POI[scenario_num]
+    construire_corridors(
+        G,
+        poi_coords   = poi_dict.get(cle, []),
+        dense_coords = DENSITE_COORDS.get(cle, []),
+    )
+
+    nb_p1 = sum(1 for _, _, d in G.edges(data=True) if d.get("priorite", 3) == 1)
+    nb_p3 = nb_arcs - nb_p1
+
+    n_depots  = DEPOTS_OPTIMAUX[cle]
+    depots    = suggerer_depots(G, n_depots)
+    r         = executer(G, depots, temps_max=TMAX_OPTIMAL)
+    _VERBOSE  = True
+
+    dist_circuit = r.distance_totale_km
+
+    out(f"  Véhicules déployés  : {r.nb_deneigeuses}")
+    out(f"  Distance totale     : {dist_circuit:.1f} km")
+    out(f"  Distance/véhicule   : {dist_circuit / r.nb_deneigeuses:.1f} km")
+    duree_moy = sum(t.duree_h for t in r.tournees) / len(r.tournees)
+    out(f"  Durée/véhicule      : {duree_moy:.2f} h")
+
+    cout_fixe_tot = sum(t.detail_cout[0] for t in r.tournees)
+    cout_km_tot   = sum(t.detail_cout[1] for t in r.tournees)
+    cout_hor_tot  = sum(t.detail_cout[2] for t in r.tournees)
+    out(f"  Coût fixe           : {cout_fixe_tot:.0f} $")
+    out(f"  Coût kilométrique   : {cout_km_tot:.0f} $")
+    out(f"  Coût horaire        : {cout_hor_tot:.0f} $")
+    out(f"  COÛT TOTAL          : {r.cout_total:.0f} $")
+
+    # Distribution priorités & percentiles
+    label_sc = SCENARIO_LABELS[scenario_num]
+    out(f"\n[Scénario {scenario_num}] {label_sc}")
+    out(f"  Distribution des priorités : P1={nb_p1}, P3={nb_p3}")
+
+    t_p1 = _percentile_timing(r.tournees, G, 1)
+    t_p3 = _percentile_timing(r.tournees, G, 3)
+
+    out(f"    P1: {_fmt_pct(t_p1, len(t_p1))}")
+    out(f"    P3: {_fmt_pct(t_p3, len(t_p3))}")
+
+    ok_str  = "✓ OK" if r.ok else "✗ NON RESPECTÉ"
+    elapsed = time.perf_counter() - T0
+    out(f"\n  Contrainte 8h     : {ok_str}")
+    out(f"  Temps d'exécution : {elapsed:.1f}s")
+
+    # Sauvegarde txt
+    nom_txt = f"demo_{sector}_s{scenario_num}.txt"
+    with open(nom_txt, "w", encoding="utf-8") as f:
+        f.write(buf.getvalue())
+    print(f"\n  → Résultat sauvegardé : {nom_txt}")
+
+    # Export JSON
+    nom_json = f"demo_{sector}_s{scenario_num}.json"
+    exporter_json(r, nom_json)
+    print(f"  → JSON sauvegardé    : {nom_json}")
+
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Optimisation hivernale Montréal")
+    parser.add_argument("--sector",   choices=["verdun", "outremont", "anjou", "rdp"])
+    parser.add_argument("--scenario", type=int, choices=[1, 2])
+    args = parser.parse_args()
+
+    if args.sector and args.scenario:
+        mode_demo(args.sector, args.scenario)
+    else:
+        main()
