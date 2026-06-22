@@ -876,7 +876,7 @@ def _afficher_impact(out, clearing_s1, clearing_s0, chemins, n_zones, population
     gain     = p90_s0 - p90_s1
     gain_pct = gain / p90_s0 * 100 if p90_s0 else 0
     out(f"  P90 corridors S1  : {p90_s1:.2f}h")
-    out(f"  P90 corridors S0  : {p90_s0:.2f}h  (mêmes dépôts, sans priorisation)")
+    out(f"  P90 corridors S0  : {p90_s0:.2f}h  (mêmes nombre de dépôts, sans priorisation)")
     gain_str = f"−{gain:.2f}h (−{gain_pct:.0f}%)" if gain > 0 else f"+{-gain:.2f}h (+{-gain_pct:.0f}%)"
     out(f"  Gain P90          : {gain_str}")
 
