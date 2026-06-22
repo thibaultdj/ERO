@@ -825,8 +825,6 @@ def mode_demo(sector, scenario_num):
 
     ok_str  = "✓ OK" if r.ok else "✗ NON RESPECTÉ"
     elapsed = time.perf_counter() - T0
-    out(f"\n  Contrainte 8h     : {ok_str}")
-    out(f"  Temps d'exécution : {elapsed:.1f}s")
 
     # Sauvegarde txt
     nom_txt = f"demo_{sector}_s{scenario_num}.txt"
