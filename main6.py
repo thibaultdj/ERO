@@ -132,11 +132,11 @@ DENSITE_COORDS = {
 
 # Mapping graphml → clé POI
 GRAPHES = {
-    "montreal.graphml":  "montreal",
- #   "verdun.graphml":    "verdun",
-  #  "outremont.graphml": "outremont",
-   # "anjou.graphml":     "anjou",
-   # "rdp.graphml":       "rdp",
+ #   "montreal.graphml":  "montreal",
+    "verdun.graphml":    "verdun",
+    "outremont.graphml": "outremont",
+    "anjou.graphml":     "anjou",
+    "rdp.graphml":       "rdp",
 }
 
 
@@ -359,7 +359,7 @@ def _rendre_fortement_connexe(G, M, depot):
         for scc in sccs:
             if scc is scc_depot:
                 continue
-            rep = next(iter(scc))
+            rep = min(scc)
             for src, dst in [(depot, rep), (rep, depot)]:
                 path = _dijkstra_path(G, src, dst)
                 if path:
