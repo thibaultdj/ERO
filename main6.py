@@ -214,7 +214,7 @@ def charger_graphe(chemin):
         lng = float(d.get("length", 0.0))
         G[u][v]["length"] = lng
         if not G.has_edge(v, u):
-            G.add_edge(v, u, length=lng)
+            G.add_edge(v, u, length=lng,deadhead=True)
     _chrono.fin("charger_graphe")
     return G
 
@@ -345,7 +345,8 @@ def _dijkstra_path(G, src, dst):
 def _ajouter_chemin(G, M, path):
     for a, b in zip(path[:-1], path[1:]):
         if a != b:
-            M.add_edge(a, b, length=G[a][b]["length"])
+            M.add_edge(a, b,
+            length=G[a][b]["length"],deadhead=G[a][b].get("deadhead",False))
 
 
 def _rendre_fortement_connexe(G, M, depot):
@@ -431,7 +432,7 @@ def circuit_eulerien(M, source):
 def cpp_oriente(G, aretes, depot):
     M = nx.MultiDiGraph()
     for u, v in aretes:
-        M.add_edge(u, v, length=G[u][v]["length"])
+        M.add_edge(u, v, length=G[u][v]["length"],deadhead=False)
     if M.number_of_edges() == 0:
         return [depot], 0.0
     if depot not in M.nodes:
@@ -444,8 +445,8 @@ def cpp_oriente(G, aretes, depot):
     dist    = sum(
         G[circuit[i]][circuit[i + 1]]["length"]
         for i in range(len(circuit) - 1)
-        if G.has_edge(circuit[i], circuit[i + 1])
-    )
+        if G.has_edge(circuit[i], circuit[i + 1]) and not
+        G[circuit[i]][circuit[i+1]].get("deadhead",False))
     return circuit, dist
 
 
@@ -680,8 +681,8 @@ def lancer_scenarios(G, scenarios_depots, scenarios_temps, tag_export):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-SCENARIOS_DEPOTS = [1,3,5,7,10,15,20,30,50, 100]
-SCENARIOS_TEMPS  = [12.0, 10.0, 8.0]
+SCENARIOS_DEPOTS = [1,2,3,5,6,7,10]
+SCENARIOS_TEMPS  = [12.0]
 
 
 def lancement_scenario0(G, cle):
