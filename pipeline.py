@@ -10,6 +10,7 @@ from graphe import charger_graphe
 from scenarios import construire_corridors, construire_hierarchie_routiere
 from depots import suggerer_depots
 from planification import executer
+from fiche_de_tournee import generer_fiches
 
 
 def _etape(label, t0):
@@ -53,7 +54,7 @@ def afficher_recap(tous_resultats):
               f"{r.distance_totale_km:>9.1f}  {r.duree_max_h:>8.2f}  "
               f"{r.cout_total:>10.2f}  {ok_str:>4}")
 
-def lancer_scenarios(G, nb_depots, scenarios_depots, scenarios_temps, tag_export):
+def lancer_scenarios(G, nb_depots, scenarios_depots, scenarios_temps, tag_export, avec_fiches=False):
     SEP  = "═" * 72
     SEP2 = "─" * 72
 
@@ -94,40 +95,45 @@ def lancer_scenarios(G, nb_depots, scenarios_depots, scenarios_temps, tag_export
                 chemin = EXPORT_JSON.replace(".json", f"_{tag_export}_{n}depots_{int(tmax)}h.json")
                 exporter_json(r, chemin)
                 print(f"          → export : {chemin}")
+                if avec_fiches:
+                    chemin_fiches = chemin.replace(".json", "_fiches.json")
+                    print(f"          → récupération des noms de rues (Overpass)...")
+                    generer_fiches(G, r, chemin_fiches)
+                    print(f"          → fiches : {chemin_fiches}")
 
     afficher_recap(tous_resultats)
 
-def lancement_scenario0(G, cle,nb_depots):
+def lancement_scenario0(G, cle, nb_depots, avec_fiches=False):
     print(f"\n  ► Scénario 0 — Base (aucune priorisation, référence)")
 
     for u, v in G.edges():
         G[u][v]["priorite"] = 3
-    lancer_scenarios(G,nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s0")
+    lancer_scenarios(G, nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s0", avec_fiches=avec_fiches)
 
-def lancement_scenario1(G, cle,nb_depots):
+def lancement_scenario1(G, cle, nb_depots, avec_fiches=False):
     print(f"\n  ► Scénario 1 — Accès aux services de santé")
     construire_corridors(
         G,
         poi_coords   = HOPITAUX_COORDS.get(cle, []),
         dense_coords = DENSITE_COORDS.get(cle, []),
     )
-    lancer_scenarios(G, nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s1")
+    lancer_scenarios(G, nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s1", avec_fiches=avec_fiches)
 
-def lancement_scenario2(G, cle,nb_depots):
+def lancement_scenario2(G, cle, nb_depots, avec_fiches=False):
     print(f"\n  ► Scénario 2 — Impact économique (centres commerciaux)")
     construire_corridors(
         G,
         poi_coords   = COMMERCES_COORDS.get(cle, []),
         dense_coords = DENSITE_COORDS.get(cle, []),
     )
-    lancer_scenarios(G,nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s2")
+    lancer_scenarios(G, nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s2", avec_fiches=avec_fiches)
 
-def lancement_scenario3(G, cle,nb_depots):
+def lancement_scenario3(G, cle, nb_depots, avec_fiches=False):
     print(f"\n  ► Scénario 3 — Hiérarchie routière (artères → collectrices → locales)")
     construire_hierarchie_routiere(G)
-    lancer_scenarios(G, nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s3")
+    lancer_scenarios(G, nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s3", avec_fiches=avec_fiches)
 
-def main(graphdemo=None ,nb_depots=None):
+def main(graphdemo=None, nb_depots=None, avec_fiches=False):
     T_GLOBAL = time.perf_counter()
     SEP      = "═" * 72
     SEP2     = "─" * 72
@@ -142,7 +148,7 @@ def main(graphdemo=None ,nb_depots=None):
             G = charger_graphe(graphml)
             _etape(f"{G.number_of_nodes()} nœuds  |  {G.number_of_edges()} arcs", t)
 
-            lancement_scenario0(G, cle,nb_depots)
+            lancement_scenario0(G, cle, nb_depots, avec_fiches)
     else:
         print(f"\n{SEP}")
         print(f"  ARRONDISSEMENT : {graphdemo.upper()}")
@@ -153,7 +159,7 @@ def main(graphdemo=None ,nb_depots=None):
         _etape(f"{G.number_of_nodes()} nœuds  |  {G.number_of_edges()} arcs", t)
 
         cle = GRAPHES.get(graphdemo, "demo")
-        lancement_scenario0(G, cle,nb_depots)
+        lancement_scenario0(G, cle, nb_depots, avec_fiches)
 
     config._chrono.rapport()
     _etape("TOTAL GLOBAL", T_GLOBAL)

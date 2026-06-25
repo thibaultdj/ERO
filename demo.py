@@ -13,6 +13,7 @@ from scenarios import construire_corridors, construire_hierarchie_routiere
 from depots import suggerer_depots
 from planification import executer
 from pipeline import exporter_json
+from fiche_de_tournee import generer_fiches
 
 
 def _calculer_chemins_corridors(G, poi_coords, dense_coords):
@@ -167,7 +168,7 @@ def _cout_depot_jour(n):
     maintenance  = 500 / 365
     return amort + maintenance * n
 
-def mode_demo(sector, scenario_num):
+def mode_demo(sector, scenario_num, avec_fiches=False):
     T0 = time.perf_counter()
 
     buf = io.StringIO()
@@ -272,3 +273,9 @@ def mode_demo(sector, scenario_num):
 
     exporter_json(r, nom_json)
     print(f"  → JSON sauvegardé    : {nom_json}")
+
+    if avec_fiches:
+        nom_fiches = nom_json.replace(".json", "_fiches.json")
+        print(f"  → récupération des noms de rues (Overpass)...")
+        generer_fiches(G, r, nom_fiches)
+        print(f"  → Fiches sauvegardées : {nom_fiches}")

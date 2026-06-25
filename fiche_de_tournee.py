@@ -59,6 +59,39 @@ def get_ordered_streets(sequence, cache):
             streets.append(rue)
     return streets
 
+def generer_fiches(G, resultat, chemin_sortie=None):
+    """Construit les fiches de tournée (avec noms de rues) directement depuis
+    un graphe networkx déjà chargé et un objet Resultat déjà calculé,
+    sans repasser par les fichiers JSON/GraphML sur disque."""
+    all_node_ids = set()
+    for t in resultat.tournees:
+        all_node_ids.update(t.sequence)
+
+    cache = fetch_street_names([str(n) for n in all_node_ids])
+
+    fiches = []
+    for t in resultat.tournees:
+        seq = t.sequence
+        depart_lat = G.nodes[seq[0]]["lat"] if seq else None
+        depart_lon = G.nodes[seq[0]]["lon"] if seq else None
+        fiches.append({
+            "vehicule": t.id + 1,
+            "depart": {
+                "lat": depart_lat,
+                "lon": depart_lon
+            },
+            "nb_rues": len(t.aretes),
+            "distance_km": round(t.distance_km, 2),
+            "duree_h": round(t.duree_h, 2),
+            "rues": get_ordered_streets(seq, cache)
+        })
+
+    if chemin_sortie:
+        with open(chemin_sortie, "w", encoding="utf-8") as f:
+            json.dump(fiches, f, ensure_ascii=False, indent=2)
+
+    return fiches
+
 def main():
     nodes = load_nodes(GRAPHML_PATH)
 
