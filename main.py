@@ -8,11 +8,12 @@ if __name__ == "__main__":
     parser.add_argument("--sector",   choices=["verdun", "outremont", "anjou",
                                                "rdp","montreal"])
     parser.add_argument("--scenario", type=int, choices=[0, 1, 2, 3])
+    parser.add_argument("--nb_depots", type=int, help="Nombre de dépôts à considérer")
     args = parser.parse_args()
 
     if args.sector and args.scenario is not None:
         if args.scenario == 0:
-            lancer_pipeline(graphdemo=args.sector)
+            lancer_pipeline(graphdemo=args.sector, nb_depots=args.nb_depots)
         else:
             mode_demo(args.sector, args.scenario)
     else:
