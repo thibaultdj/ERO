@@ -134,9 +134,9 @@ DENSITE_COORDS = {
 GRAPHES = {
  #   "montreal.graphml":  "montreal",
     "verdun.graphml":    "verdun",
-    "outremont.graphml": "outremont",
-    "anjou.graphml":     "anjou",
-    "rdp.graphml":       "rdp",
+   # "outremont.graphml": "outremont",
+   # "anjou.graphml":     "anjou",
+   # "rdp.graphml":       "rdp",
 }
 
 
@@ -738,7 +738,7 @@ def main():
 
 # ── Mode démo CLI ─────────────────────────────────────────────────────────────
 
-DEPOTS_OPTIMAUX = {"verdun": 2, "outremont": 2, "anjou": 3, "rdp": 6}
+DEPOTS_OPTIMAUX = {"verdun": 1, "outremont": 1, "anjou": 1, "rdp": 2}
 TMAX_OPTIMAL    = 12.0
 
 # Population par zone dense (StatCan 2021, ordre identique à DENSITE_COORDS)
