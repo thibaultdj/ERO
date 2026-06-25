@@ -2,9 +2,9 @@ import json
 import xml.etree.ElementTree as ET
 import requests
 from collections import defaultdict
+import argparse
 
-GRAPHML_PATH = "Montreal.graphml"
-RESULTAT_PATH = "resultat.json"
+
 OUTPUT_PATH = "fiches.json"
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
@@ -94,4 +94,12 @@ def main():
     print(f"Fiches enregistrées dans {OUTPUT_PATH}")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Génération des fiches de tournée")
+    parser.add_argument("--graphml", type=str, help="Chemin vers le fichier GraphML")
+    parser.add_argument("--resultat", type=str, help="Chemin vers le fichier JSON des résultats")
+    if parser.parse_args().resultat is not None and parser.parse_args().resultat != "":
+        RESULTAT_PATH = parser.parse_args().resultat
+        GRAPHML_PATH = parser.parse_args().graphml
+        main()
+    else:
+        print("Erreur : le chemin vers le fichier JSON des résultats doit être fourni avec --resultat")
