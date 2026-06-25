@@ -4,13 +4,9 @@ Projet réalisé dans le cadre du cours ERO (Recherche Opérationnelle).
 
 | Nom | Rôle / contribution |
 |---|---|
-| TODO | TODO |
-| TODO | TODO |
-| TODO | TODO |
+| Thibault De Jaeck  | TODO |
+| Ayoub Hajji  | TODO |
+| Maurice Modibo Kone | TODO |
+| Antoine Lê | TODO |
+| Antoine Ollivier | TODO |
 
-<!--
-Détecté dans l'historique git, à confirmer/compléter :
-- Antoine
-- Maurice
-- Thibault De Jaeck
--->
