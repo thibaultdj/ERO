@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+demo_*.txt
+demo_*.json
+resultat*.json
