@@ -1,4 +1,5 @@
 import json
+import time
 import xml.etree.ElementTree as ET
 import requests
 from collections import defaultdict
@@ -7,6 +8,8 @@ import argparse
 
 OUTPUT_PATH = "fiches.json"
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+CHUNK_SIZE = 400
+MAX_ESSAIS = 4
 
 def load_nodes(path):
     NS = "{http://graphml.graphdrawing.org/xmlns}"
@@ -22,26 +25,43 @@ def load_nodes(path):
         nodes[nid] = (lat, lon)
     return nodes
 
-def fetch_street_names(node_ids):
-    ids_str = ",".join(node_ids)
+def _interroger_overpass(ids_chunk):
+    ids_str = ",".join(ids_chunk)
     query = f"""
 [out:json][timeout:60];
 node(id:{ids_str});
 way(bn)["highway"]["name"];
 out body;
 """
-    r = requests.post(OVERPASS_URL, data={"data": query},
-                      headers={"User-Agent": "snow-route/1.0"}, timeout=90)
-    r.raise_for_status()
-    data = r.json()
+    derniere_erreur = None
+    for essai in range(MAX_ESSAIS):
+        try:
+            r = requests.post(OVERPASS_URL, data={"data": query},
+                              headers={"User-Agent": "snow-route/1.0"}, timeout=90)
+            if r.status_code == 429 or r.status_code >= 500:
+                raise requests.HTTPError(f"{r.status_code} {r.reason}", response=r)
+            r.raise_for_status()
+            return r.json()
+        except requests.RequestException as e:
+            derniere_erreur = e
+            if essai < MAX_ESSAIS - 1:
+                time.sleep(3 * (essai + 1))
+    print(f"    [Alerte] Overpass indisponible pour {len(ids_chunk)} nœuds "
+          f"après {MAX_ESSAIS} essais ({derniere_erreur}) — noms laissés à '(inconnue)'")
+    return {"elements": []}
 
+def fetch_street_names(node_ids):
     node_to_streets = defaultdict(set)
-    for elem in data.get("elements", []):
-        if elem["type"] == "way":
-            name = elem.get("tags", {}).get("name")
-            if name:
-                for nid in elem.get("nodes", []):
-                    node_to_streets[str(nid)].add(name)
+
+    for i in range(0, len(node_ids), CHUNK_SIZE):
+        chunk = node_ids[i:i + CHUNK_SIZE]
+        data = _interroger_overpass(chunk)
+        for elem in data.get("elements", []):
+            if elem["type"] == "way":
+                name = elem.get("tags", {}).get("name")
+                if name:
+                    for nid in elem.get("nodes", []):
+                        node_to_streets[str(nid)].add(name)
 
     return {nid: sorted(node_to_streets.get(nid, {"(inconnue)"})) for nid in node_ids}
 
