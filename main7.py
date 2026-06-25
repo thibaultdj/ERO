@@ -136,7 +136,7 @@ GRAPHES = {
     "verdun.graphml":    "verdun",
    # "outremont.graphml": "outremont",
    # "anjou.graphml":     "anjou",
-   # "rdp.graphml":       "rdp",
+    "rdp.graphml":       "rdp",
 }
 
 
@@ -419,7 +419,7 @@ def circuit_eulerien(M, source):
         # Trie par ordre croissant: les priorités 1 (haute) au début, les 3 (basse) à la fin.
         # En Python, pop() retire l'élément de la FIN. 
         # L'algorithme explorera donc les P3 en premier, ce qui les poussera à la FIN du circuit une fois inversé !
-        adj[u].sort(key=lambda x: x[1])
+        adj[u].sort(key=lambda x: x[1], reverse=True)
         
     stack, circuit = [source], []
     while stack:
