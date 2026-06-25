@@ -132,10 +132,10 @@ DENSITE_COORDS = {
 
 # Mapping graphml → clé POI
 GRAPHES = {
- #   "montreal.graphml":  "montreal",
+    "montreal.graphml":  "montreal",
     "verdun.graphml":    "verdun",
-   # "outremont.graphml": "outremont",
-   # "anjou.graphml":     "anjou",
+    "outremont.graphml": "outremont",
+    "anjou.graphml":     "anjou",
     "rdp.graphml":       "rdp",
 }
 
@@ -720,23 +720,33 @@ def lancement_scenario2(G, cle):
     lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s2")
 
 
-def main():
+def main(graphdemo=None):
     T_GLOBAL = time.perf_counter()
     SEP      = "═" * 72
     SEP2     = "─" * 72
 
-    for graphml, cle in GRAPHES.items():
+    if graphdemo == None:
+        for graphml, cle in GRAPHES.items():
+            print(f"\n{SEP}")
+            print(f"  ARRONDISSEMENT : {cle.upper()}")
+            print(SEP2)
+
+            t = time.perf_counter()
+            G = charger_graphe(graphml)
+            _etape(f"{G.number_of_nodes()} nœuds  |  {G.number_of_edges()} arcs", t)
+
+            lancement_scenario0(G, cle)
+    else:
         print(f"\n{SEP}")
-        print(f"  ARRONDISSEMENT : {cle.upper()}")
+        print(f"  ARRONDISSEMENT : {graphdemo.upper()}")
         print(SEP2)
 
         t = time.perf_counter()
-        G = charger_graphe(graphml)
+        G = charger_graphe(graphdemo + ".graphml")
         _etape(f"{G.number_of_nodes()} nœuds  |  {G.number_of_edges()} arcs", t)
 
+        cle = GRAPHES.get(graphdemo, "demo")
         lancement_scenario0(G, cle)
-#        lancement_scenario1(G, cle)
-#        lancement_scenario2(G, cle)
 
     _chrono.rapport()
     _etape("TOTAL GLOBAL", T_GLOBAL)
@@ -757,6 +767,7 @@ POPULATION_DENSITE = {
 }
 
 SCENARIO_LABELS = {
+    0: "Base (aucune priorisation)",
     1: "Accès aux services de santé",
     2: "Impact économique (centres commerciaux)",
 }
@@ -1004,11 +1015,14 @@ def mode_demo(sector, scenario_num):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Optimisation hivernale Montréal")
     parser.add_argument("--sector",   choices=["verdun", "outremont", "anjou",
-                                               "rdp"])
-    parser.add_argument("--scenario", type=int, choices=[1, 2])
+                                               "rdp","montreal"])
+    parser.add_argument("--scenario", type=int, choices=[0 ,1, 2])
     args = parser.parse_args()
 
-    if args.sector and args.scenario:
-        mode_demo(args.sector, args.scenario)
+    if args.sector and args.scenario is not None:
+        if args.scenario == 0:
+            main(graphdemo= args.sector)
+        else:
+            mode_demo(args.sector, args.scenario)
     else:
         main()
