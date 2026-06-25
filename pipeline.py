@@ -53,7 +53,7 @@ def afficher_recap(tous_resultats):
               f"{r.distance_totale_km:>9.1f}  {r.duree_max_h:>8.2f}  "
               f"{r.cout_total:>10.2f}  {ok_str:>4}")
 
-def lancer_scenarios(G, scenarios_depots, scenarios_temps, tag_export):
+def lancer_scenarios(G, nb_depots, scenarios_depots, scenarios_temps, tag_export):
     SEP  = "═" * 72
     SEP2 = "─" * 72
 
@@ -62,11 +62,18 @@ def lancer_scenarios(G, scenarios_depots, scenarios_temps, tag_export):
     print(SEP2)
 
     depots_par_n = {}
-    for n in scenarios_depots:
+    if nb_depots is None:
+        for n in scenarios_depots:
+            t      = time.perf_counter()
+            depots = suggerer_depots(G, n)
+            depots_par_n[n] = depots
+            _etape(f"{n} dépôt(s)  →  {depots}", t)
+    else:
+        print("eeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
         t      = time.perf_counter()
-        depots = suggerer_depots(G, n)
-        depots_par_n[n] = depots
-        _etape(f"{n} dépôt(s)  →  {depots}", t)
+        depots = suggerer_depots(G, nb_depots)
+        depots_par_n[nb_depots] = depots
+        _etape(f"{nb_depots} dépôt(s)  →  {depots}", t)
 
     print(f"\n{SEP}")
     print("  ÉTAPE 3 / 3  —  Solveur CPP")
@@ -90,37 +97,37 @@ def lancer_scenarios(G, scenarios_depots, scenarios_temps, tag_export):
 
     afficher_recap(tous_resultats)
 
-def lancement_scenario0(G, cle):
+def lancement_scenario0(G, cle,nb_depots):
     print(f"\n  ► Scénario 0 — Base (aucune priorisation, référence)")
 
     for u, v in G.edges():
         G[u][v]["priorite"] = 3
-    lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s0")
+    lancer_scenarios(G,nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s0")
 
-def lancement_scenario1(G, cle):
+def lancement_scenario1(G, cle,nb_depots):
     print(f"\n  ► Scénario 1 — Accès aux services de santé")
     construire_corridors(
         G,
         poi_coords   = HOPITAUX_COORDS.get(cle, []),
         dense_coords = DENSITE_COORDS.get(cle, []),
     )
-    lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s1")
+    lancer_scenarios(G, nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s1")
 
-def lancement_scenario2(G, cle):
+def lancement_scenario2(G, cle,nb_depots):
     print(f"\n  ► Scénario 2 — Impact économique (centres commerciaux)")
     construire_corridors(
         G,
         poi_coords   = COMMERCES_COORDS.get(cle, []),
         dense_coords = DENSITE_COORDS.get(cle, []),
     )
-    lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s2")
+    lancer_scenarios(G,nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s2")
 
-def lancement_scenario3(G, cle):
+def lancement_scenario3(G, cle,nb_depots):
     print(f"\n  ► Scénario 3 — Hiérarchie routière (artères → collectrices → locales)")
     construire_hierarchie_routiere(G)
-    lancer_scenarios(G, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s3")
+    lancer_scenarios(G, nb_depots, SCENARIOS_DEPOTS, SCENARIOS_TEMPS, tag_export=f"{cle}_s3")
 
-def main(graphdemo=None):
+def main(graphdemo=None ,nb_depots=None):
     T_GLOBAL = time.perf_counter()
     SEP      = "═" * 72
     SEP2     = "─" * 72
@@ -135,7 +142,7 @@ def main(graphdemo=None):
             G = charger_graphe(graphml)
             _etape(f"{G.number_of_nodes()} nœuds  |  {G.number_of_edges()} arcs", t)
 
-            lancement_scenario0(G, cle)
+            lancement_scenario0(G, cle,nb_depots)
     else:
         print(f"\n{SEP}")
         print(f"  ARRONDISSEMENT : {graphdemo.upper()}")
@@ -146,7 +153,7 @@ def main(graphdemo=None):
         _etape(f"{G.number_of_nodes()} nœuds  |  {G.number_of_edges()} arcs", t)
 
         cle = GRAPHES.get(graphdemo, "demo")
-        lancement_scenario0(G, cle)
+        lancement_scenario0(G, cle,nb_depots)
 
     config._chrono.rapport()
     _etape("TOTAL GLOBAL", T_GLOBAL)
