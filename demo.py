@@ -11,7 +11,7 @@ from graphe import charger_graphe, noeud_le_plus_proche
 from cpp import _dijkstra_path
 from scenarios import construire_corridors, construire_hierarchie_routiere
 from depots import suggerer_depots
-from planification import executer
+from planification import executer, cout_depot_jour
 from pipeline import exporter_json
 from fiche_de_tournee import generer_fiches
 
@@ -160,15 +160,7 @@ def _fmt_config_vehicules(tournees, n_depots):
     parties = [f"{nb_dep}x{nb_veh}" for nb_veh, nb_dep in sorted(freq.items(), reverse=True)]
     return " / ".join(parties)
 
-def _cout_depot_jour(n):
-    import math
-    surface     = 30 * n + 15 * math.sqrt(n)
-    construction = surface * 1050
-    amort        = construction / (30 * 365)
-    maintenance  = 500 / 365
-    return amort + maintenance * n
-
-def mode_demo(sector, scenario_num, avec_fiches=False):
+def mode_demo(sector, scenario_num, nb_depots=None, avec_fiches=False):
     T0 = time.perf_counter()
 
     buf = io.StringIO()
@@ -198,13 +190,13 @@ def mode_demo(sector, scenario_num, avec_fiches=False):
             dense_coords = DENSITE_COORDS.get(sector, []),
         )
 
-    n_depots = DEPOTS_OPTIMAUX[sector]
+    n_depots = nb_depots if nb_depots is not None else DEPOTS_OPTIMAUX[sector]
     depots   = suggerer_depots(G, n_depots)
     r        = executer(G, depots, temps_max=TMAX_OPTIMAL)
     config._VERBOSE = True
 
     cout_ope   = r.cout_total
-    cout_depot = _cout_depot_jour(n_depots)
+    cout_depot = cout_depot_jour(n_depots)
     cout_total = cout_ope + cout_depot
     config_veh = _fmt_config_vehicules(r.tournees, n_depots)
 

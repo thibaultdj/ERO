@@ -9,18 +9,20 @@ from config import (
 from graphe import charger_graphe
 from scenarios import construire_corridors, construire_hierarchie_routiere
 from depots import suggerer_depots
-from planification import executer
+from planification import executer, cout_depot_jour
 from fiche_de_tournee import generer_fiches
 
 
 def _etape(label, t0):
     print(f"  [{time.perf_counter() - t0:6.2f}s]  {label}")
 
-def exporter_json(r, chemin):
+def exporter_json(r, chemin, cout_depot=0.0):
     with open(chemin, "w", encoding="utf-8") as f:
         json.dump({
             "nb_deneigeuses":     r.nb_deneigeuses,
             "cout_total":         r.cout_total,
+            "cout_depot":         cout_depot,
+            "cout_total_avec_depot": r.cout_total + cout_depot,
             "duree_max_h":        r.duree_max_h,
             "distance_totale_km": r.distance_totale_km,
             "ok":                 r.ok,
@@ -46,13 +48,14 @@ def afficher_recap(tous_resultats):
     print("  RÉCAPITULATIF GLOBAL")
     print(SEP2)
     print(f"  {'Dépôts':>7}  {'Tmax h':>7}  {'Tournées':>9}  {'Dist km':>9}  "
-          f"{'Durée h':>8}  {'Coût $':>10}  {'OK':>4}")
+          f"{'Durée h':>8}  {'Coût opé $':>11}  {'Coût total $':>13}  {'OK':>4}")
     print(f"  {SEP2}")
     for (n, tmax), r in sorted(tous_resultats.items()):
-        ok_str = "✓" if r.ok else "✗"
+        ok_str     = "✓" if r.ok else "✗"
+        cout_depot = cout_depot_jour(n)
         print(f"  {n:>7}  {tmax:>7.0f}  {r.nb_deneigeuses:>9}  "
               f"{r.distance_totale_km:>9.1f}  {r.duree_max_h:>8.2f}  "
-              f"{r.cout_total:>10.2f}  {ok_str:>4}")
+              f"{r.cout_total:>11.2f}  {r.cout_total + cout_depot:>13.2f}  {ok_str:>4}")
 
 def lancer_scenarios(G, nb_depots, scenarios_depots, scenarios_temps, tag_export, avec_fiches=False):
     SEP  = "═" * 72
@@ -87,12 +90,14 @@ def lancer_scenarios(G, nb_depots, scenarios_depots, scenarios_temps, tag_export
             t = time.perf_counter()
             r = executer(G, depots, temps_max=tmax, cout_max=COUT_MAX)
             tous_resultats[(n, tmax)] = r
+            cout_depot = cout_depot_jour(n)
             ok_str = "✓ OK" if r.ok else "✗ NON RESPECTÉ"
             _etape(f"{r.nb_deneigeuses} tournées  |  {r.distance_totale_km:.1f} km  "
-                   f"|  {r.duree_max_h:.2f} h  |  {r.cout_total:.2f} $  |  {ok_str}", t)
+                   f"|  {r.duree_max_h:.2f} h  |  {r.cout_total:.2f} $ opé "
+                   f"({r.cout_total + cout_depot:.2f} $ avec dépôt)  |  {ok_str}", t)
             if EXPORT_JSON:
                 chemin = EXPORT_JSON.replace(".json", f"_{tag_export}_{n}depots_{int(tmax)}h.json")
-                exporter_json(r, chemin)
+                exporter_json(r, chemin, cout_depot)
                 print(f"          → export : {chemin}")
                 if avec_fiches:
                     chemin_fiches = chemin.replace(".json", "_fiches.json")

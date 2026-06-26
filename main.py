@@ -18,6 +18,6 @@ if __name__ == "__main__":
         if args.scenario == 0:
             lancer_pipeline(graphdemo=args.sector, nb_depots=args.nb_depots, avec_fiches=args.fiches)
         else:
-            mode_demo(args.sector, args.scenario, avec_fiches=args.fiches)
+            mode_demo(args.sector, args.scenario, nb_depots=args.nb_depots, avec_fiches=args.fiches)
     else:
         lancer_pipeline(avec_fiches=args.fiches)

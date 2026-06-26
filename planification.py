@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from dataclasses import dataclass, field
 from scipy.spatial import cKDTree
@@ -37,6 +38,13 @@ def cout_tournee(distance_km):
     hor = (h * COUT_HORAIRE_NORMAL if h <= SEUIL_H
            else SEUIL_H * COUT_HORAIRE_NORMAL + (h - SEUIL_H) * COUT_HORAIRE_SUPP)
     return h, COUT_FIXE_JOUR + km + hor, (COUT_FIXE_JOUR, km, hor)
+
+def cout_depot_jour(n):
+    surface      = 30 * n + 15 * math.sqrt(n)
+    construction = surface * 1050
+    amort        = construction / (30 * 365)
+    maintenance  = 500 / 365
+    return amort + maintenance * n
 
 def subdiviser(G, aretes, nb, max_iter=15):
     if nb <= 1 or len(aretes) <= 1:
