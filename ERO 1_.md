@@ -37,6 +37,15 @@ Coût Déneigeuses :
 - Coût horaire 1.1 CAD/h les 8 premières heures puis 1.3 CAD/h  
 - Vitesse moyenne 10km/h
 
+Coût d’un dépôt (méthodologie) :
+
+- On estime qu’une déneigeuse fait environ 8m x 3m (2).  
+- Le coût de construction d’un hangar est entre 350 EUR/m² soit environ 550 CAD/m². (3)  
+- Le coût du terrain pour la construction d’un hangar est d’environ 500 CAD/m² (4)  
+- Le coût de construction par m² est donc de 1050 CAD.  
+- On estime une formule de décroissance sur la taille des hangars, car l’espace de circulation peut être partagé. Soit N le nombre de véhicules : Surface = 30×N + 15×√N.  
+- On estime qu’un hangar peut être utilisé 30 ans, avec des frais supplémentaires annuels de 500 CAD par véhicule.
+
 1.3 Hypothèse de modélisation
 
 - Chaque tronçon de rue doit être parcouru au moins une fois (contrainte de couverture totale).  
@@ -51,32 +60,32 @@ Coût Déneigeuses :
 
 1.5 Formalisation et méthode de résolution
 
-Formalisation. Soit G = (V, E) le graphe orienté d'un secteur, pondéré par la longueur ℓ(u,v) de chaque arête. On cherche un ensemble de tournées T = {T₁, …, Tₖ}, chacune partant et revenant à un dépôt dᵢ ∈ V, tel que :
+Formalisation. Soit G = (V, E) le graphe orienté d'un secteur, pondéré par la longueur ℓ(u,v) de chaque arête (ce graphe est construit par la fonction graphe.charger_graphe() à partir du fichier .graphml). On cherche un ensemble de tournées T = {T₁, …, Tₖ}, chacune partant et revenant à un dépôt dᵢ ∈ V, tel que :
 
-- Couverture totale : ⋃ᵢ E(Tᵢ) = E, soit ∀(u,v) ∈ E, Σᵢ 𝟙[(u,v) ∈ Tᵢ] ≥ 1 — chaque arête est parcourue par au moins une tournée.
-- Contrainte de durée : durée(Tᵢ) = distance(Tᵢ) / v ≤ Tmax, ∀i.
-- Minimisation du coût total : min Σᵢ coût(Tᵢ), avec coût(Tᵢ) = Cfixe + Ckm·distance(Tᵢ) + Ch(durée(Tᵢ)).
+- Couverture totale : ⋃ᵢ E(Tᵢ) = E, soit ∀(u,v) ∈ E, Σᵢ 𝟙[(u,v) ∈ Tᵢ] ≥ 1, chaque arête est parcourue par au moins une tournée. Concrètement, c'est cette contrainte qui oblige le solveur (cpp.cpp_oriente()) à ajouter des arêtes supplémentaires quand un secteur n'est pas déjà fortement connexe : sans cet ajout, certaines rues isolées ne pourraient jamais être atteintes par un circuit fermé.
+- Contrainte de durée : durée(Tᵢ) = distance(Tᵢ) / v ≤ Tmax, ∀i. Dans le code, cette contrainte est testée dans planification.planifier_secteur() : si une tournée dépasse Tmax, le secteur est redécoupé (planification.subdiviser()) en plusieurs véhicules jusqu'à ce que chaque sous-tournée la respecte.
+- Minimisation du coût total : min Σᵢ coût(Tᵢ), avec coût(Tᵢ) = Cfixe + Ckm·distance(Tᵢ) + Ch(durée(Tᵢ)). C'est exactement la fonction planification.cout_tournee(), utilisée pour comparer les scénarios entre eux : la formule est identique partout, seule la distance/durée obtenue dans chaque scénario fait varier le coût final.
 
-C'est une généralisation orientée, multi-dépôts et multi-véhicules du Problème du Postier Chinois : sur un graphe équilibré et fortement connexe, le CPP se résout exactement en temps polynomial (circuit eulérien). Mais le découpage en plusieurs tournées sous contrainte de durée, combiné au choix des dépôts, rend le problème global NP-difficile (proche d'un Vehicle Routing Problem) — on résout donc par heuristique plutôt que par solveur exact.
+C'est une généralisation orientée, multi-dépôts et multi-véhicules du Problème du Postier Chinois : sur un graphe équilibré et fortement connexe, le CPP se résout exactement en temps polynomial (circuit eulérien). Le découpage en plusieurs tournées sous contrainte de durée, combiné au choix des dépôts, rend toutefois le problème global NP-difficile (proche d'un Vehicle Routing Problem). En pratique, cela signifie qu'on ne cherche pas une solution prouvée optimale : le code résout chaque sous-étape par une heuristique rapide (k-means, couplage glouton, Hierholzer) plutôt que par un solveur exact, ce qui donne une solution réalisable et de bonne qualité, mais sans garantie mathématique d'être la meilleure possible.
 
 Périmètre. Contraintes prises en compte : couverture totale (ci-dessus), retour au dépôt, durée max Tmax, coût (fixe + km + horaire majoré au-delà de 8h). Hors périmètre : capacité de chargement (sel), trafic/météo dynamiques, dépendance temporelle entre tournées successives.
 
 Hypothèses. Vitesse constante v = 10 km/h, indépendante du type de rue ; réseau statique pendant l'exécution d'une tournée ; un dépôt peut desservir plusieurs déneigeuses.
 
-Choix de modélisation — résolution par décomposition. Plutôt qu'une résolution jointe (intraitable à l'échelle de Montréal), le problème est décomposé en sous-étapes résolues séquentiellement :
+Choix de modélisation : résolution par décomposition. Plutôt qu'une résolution jointe (intraitable à l'échelle de Montréal), le problème est décomposé en sous-étapes résolues séquentiellement, chacune correspondant à un module du code :
 
-1. Placement des dépôts (facility location par k-means++, cf. 1.4).
-2. Partition du secteur par plus proche dépôt.
-3. Subdivision récursive (k-means) si durée(secteur) > Tmax.
-4. Résolution CPP par sous-graphe : connexité forte (Tarjan + Dijkstra), équilibrage des degrés (couplage glouton), circuit eulérien (Hierholzer).
+1. Placement des dépôts (facility location par k-means++, depots.suggerer_depots(), cf. 1.4).
+2. Partition du secteur par plus proche dépôt (planification.partitionner(), un découpage de type Voronoi calculé via un k-d tree).
+3. Subdivision récursive (k-means, planification.subdiviser()) si durée(secteur) > Tmax.
+4. Résolution CPP par sous-graphe (cpp.cpp_oriente()) : connexité forte (Tarjan + Dijkstra), équilibrage des degrés (couplage glouton), circuit eulérien (Hierholzer).
 
-Pour les scénarios priorisés (2.2 à 2.4), chaque arête reçoit un poids p(u,v) ∈ {1,2,3} qui biaise (a) le placement des dépôts vers les arêtes p=1, et (b) l'ordre de parcours du circuit eulérien (tri décroissant de priorité à chaque carrefour).
+Pour les scénarios priorisés (2.2 à 2.4), chaque arête reçoit un poids p(u,v) ∈ {1,2,3}, fixé par scenarios.construire_corridors() ou scenarios.construire_hierarchie_routiere(). Concrètement, ce poids intervient à deux endroits précis du code : depots._aretes_reference() ne retient que les arêtes p=1 pour positionner les dépôts (les dépôts se rapprochent donc des zones prioritaires), et cpp.circuit_eulerien() trie les arêtes sortantes de chaque carrefour par priorité décroissante avant de choisir le prochain nœud à visiter (les rues P1 sont donc dégagées avant les P2 puis les P3 à l'intérieur d'une même tournée).
 
-Indicateurs d'évaluation, comparant systématiquement scénario priorisé vs scénario de référence à dépôts égaux :
+Indicateurs d'évaluation, comparant systématiquement scénario priorisé vs scénario de référence à dépôts égaux (calculés dans demo._afficher_impact() et demo._afficher_impact_hierarchie()) :
 
 - distance totale, durée max vs Tmax, coût opérationnel total ;
-- P90 = 90ᵉ centile de {t(u,v) : (u,v) de priorité 1}, où t(u,v) est l'instant de premier passage sur l'arête — capture le cas défavorable, pas seulement la moyenne ;
-- taux de couverture cumulé par jalon horaire h : |{(u,v) priorité p : t(u,v) ≤ h}| / |{(u,v) priorité p}|.
+- P90 = 90ᵉ centile de {t(u,v) : (u,v) de priorité 1}, où t(u,v) est l'instant de premier passage sur l'arête. Regarder le 90ᵉ centile plutôt que la moyenne garantit concrètement que même les 10% de rues prioritaires les plus tardivement dégagées le sont dans un délai raisonnable, pas seulement la majorité d'entre elles ;
+- taux de couverture cumulé par jalon horaire h : |{(u,v) priorité p : t(u,v) ≤ h}| / |{(u,v) priorité p}|, c'est le tableau heure par heure affiché par le mode démo (--scenario 1, 2 ou 3).
 
 Limites. Heuristiques sans garantie d'optimalité (k-means, couplage glouton) ; vitesse constante non réaliste ; modèle statique (pas de chute de neige continue) ; absence de contrainte de capacité. Les limites spécifiques au placement des dépôts et à l'équilibrage sont détaillées en 1.6.
 
@@ -95,27 +104,27 @@ La distance minimale théorique est de 6 242 km.
 	Argumentaire : Le déneigement uniforme est l’approche réglementaire de base. Il sert de référence pour les autres scénarios.   
 	Résultats : 
 
-| Nombre de dépôts  | Nombre de déneigeuse par dépôts  | Temps nécessaire  | Prix |
-| :---- | ----- | ----- | ----- |
-| 1 | 1×310  | 13.45h | 185 302,87 $ |
-| 5 | 1×26, 1×27, 2×28, 1×48  | 11.94h | 93 668,46 $ |
-| 10 | 1×10, 3×12, 2×13, 2×14, 1×17, 1×19  | 11.94h | 80 472,82 $ |
-| 15 | 2×6, 3×7, 6×9, 2×11, 1×12, 1×17  | 11.15h | 80 985,71 $ |
-| 19 | 3×4, 4×5, 3×6, 5×7, 1×8, 1×9, 1×12, 1×19  | 11.98h | 78 494,55 $ |
-| 20 | 3×4, 4×5, 4×6, 4×7, 2×8, 1×9, 1×10, 1×11  | 11.19h | 76 815,78 $ |
-| 21 | 1×3, 4×4, 4×5, 3×6, 4×7, 1×8, 2×9, 1×10, 1×11  | 11.19h | 77 761,44 $ |
-| 25 | 4×3, 5×4, 5×5, 4×6, 3×7, 2×8, 2×9  | 10.16h | 79 743,06 $ |
+| Nombre de dépôts  | Nombre de déneigeuse par dépôts  | Temps nécessaire  | Prix hors coût dépôt | Prix avec coût dépôt |
+| :---- | ----- | ----- | ----- | ----- |
+| 1 | 1×310  | 13.45h | 185 302,87 $  | 188 096,57 $  |
+| 5 | 1×26, 1×27, 2×28, 1×48  | 11.94h | 93 668,46 $  | 95 184,70 $  |
+| 10 | 1×10, 3×12, 2×13, 2×14, 1×17, 1×19  | 11.94h | 80 472,82 $  | 81 865,18 $  |
+| 15 | 2×6, 3×7, 6×9, 2×11, 1×12, 1×17  | 11.15h | 80 985,71 $  | 82 452,84 $  |
+| 19 | 3×4, 4×5, 3×6, 5×7, 1×8, 1×9, 1×12, 1×19  | 11.98h | 78 494,55 $  | 79 952,60 $  |
+| 20 | 3×4, 4×5, 4×6, 4×7, 2×8, 1×9, 1×10, 1×11  | 11.19h | 76 815,78 $  | 78 257,38 $  |
+| 21 | 1×3, 4×4, 4×5, 3×6, 4×7, 1×8, 2×9, 1×10, 1×11  | 11.19h | 77 761,44 $  | 79 231,06 $  |
+| 25 | 4×3, 5×4, 5×5, 4×6, 3×7, 2×8, 2×9  | 10.16h | 79 743,06 $  | 81 288,79 $  |
 
-Conclusion : parmi les configurations testées, 20 dépôts donnent le coût opérationnel le plus bas (76 815,78$/jour). Sur 120 jours de déneigement (une saison), cela représente 9 217 893,60 $ pour Montréal. Le modèle ne tient compte ici que du coût opérationnel (carburant, heures, forfait journalier) — aucun coût d'infrastructure de dépôt n'est modélisé, donc cette conclusion ne reflète pas un arbitrage coût-opérationnel/coût-d'infrastructure : au-delà de 20 dépôts, le gain marginal en coût opérationnel diminue sans qu'un coût de construction vienne le contrebalancer dans le modèle actuel.
+Conclusion : il faudrait construire 20 dépôts, et le coût d’un jour de déneigement en comptant le coût des dépôts est de 78 257,38$. Ainsi, pour 120 jours de déneigement (une saison), cela coûterait à la ville 9 390 885,60 $.
 
 Avec la même méthode on trouve pour les quartiers suivants :
 
-| Arrondissement | Dépôts | Nombre de dépôts x nombre déneigeuse | Temps nécessaire | Prix |
-| :---- | ----- | ----- | ----- | ----- |
-| Verdun | 1 | 1x2 | 8.66h | 1 179.63 $ |
-| Outremont | 1 | 1x1 | 8.88h | 607.64 $ |
-| Anjou | 1 | 1x4  | 9.61h | 2 391.05 $ |
-| RDP | 2 | 2x6 | 9.72h | 7 149.25 $ |
+| Arrondissement | Dépôts | Nombre de dépôts x nombre déneigeuse | Temps nécessaire | Prix hors coût dépôt | Prix avec coût dépôt |
+| :---- | ----- | ----- | ----- | ----- | ----- |
+| Verdun | 1 | 1x2 | 8.66h | 1 179.63 $ | 1 185.32 $ |
+| Outremont | 1 | 1x1 | 8.88h | 607.64 $ | 613.33 $ |
+| Anjou | 1 | 1x4  | 9.61h | 2 391.05 $ | 2 396.74 $ |
+| RDP | 2 | 2x6 | 9.72h | 7 149.25 $ | 7 159.78 $ |
 
 2.2 Scénario 1  
 	Ce scénario vise à déneiger en priorité les hôpitaux.   
@@ -132,12 +141,12 @@ Fonctionnement : Pour chaque arrondissement, on collecte les coordonnées GPS de
 
 Résultats par arrondissement : 
 
-| Arrondissement | Dépôts | Config | Durée | Prix | P90 S1 | P90 S0 | Gain P90 |
-| :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- |
-| Verdun | 1 | 1x2 | 8.66h | 1 179.39 $ | 6.93h | 8.61h | −1.69h (−20%) |
-| Outremont | 1 | 1x1 | 8.88h | 607.64 $ | 8.34h | 8.63h | −0.29h (−3%) |
-| Anjou | 1 | 1x4 | 9.76h | 2 388.66 $ | 9.40h | 9.43h | −0.02h (−0%) |
-| RDP | 2 | 1x8 / 1x6 | 9.44h | 8 183.82 $ | 9.30h | 9.53h | −0.24h (−2%) |
+| Arrondissement | Dépôts | Config | Durée | Prix hors coût dépôt | Prix avec coût dépôt | P90 S1 | P90 S0 | Gain P90 |
+| :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- |
+| Verdun | 1 | 1x2 | 8.66h | 1 179.39 $ | 1 185.08 $ | 6.93h | 8.61h | −1.69h (−20%) |
+| Outremont | 1 | 1x1 | 8.88h | 607.64 $ | 613.33 $ | 8.34h | 8.63h | −0.29h (−3%) |
+| Anjou | 1 | 1x4 | 9.76h | 2 388.66 $ | 2 394.34 $ | 9.40h | 9.43h | −0.02h (−0%) |
+| RDP | 2 | 1x8 / 1x6 | 9.44h | 8 183.82 $ | 8 194.35 $ | 9.30h | 9.53h | −0.24h (−2%) |
 
 Observation :
 
@@ -162,12 +171,12 @@ Argumentaire : les épisodes neigeux entraînent une réduction significative de
 
 Résultats par arrondissement : 
 
-| Arrondissement | Dépôts | Dépôts x Déneigeuses | Durée | Prix | P90 S2 | P90 S0 | Gain P90 |
-| :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- |
-| Verdun | 1 | 1x2 | 8.66h | 1 179.63 $ | 7.88h | 8.38h | −0.50h (−6%) |
-| Outremont | 1 | 1x1 | 8.88h | 607.64 $ | 8.14h | 8.63h | −0.49h (−6%) |
-| Anjou | 1 | 1x4 | 9.61h | 2 391.05 $ | 8.69h | 8.96h | −0.27h (−3%) |
-| RDP | 2 | 1x8 / 1x7 | 9.65h | 8 691.71 $ | 7.33h | 8.43h | −1.10h (−13%) |
+| Arrondissement | Dépôts | Dépôts x Déneigeuses | Durée | Prix hors coût dépôt | Prix avec coût dépôt | P90 S2 | P90 S0 | Gain P90 |
+| :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- |
+| Verdun | 1 | 1x2 | 8.66h | 1 179.63 $ | 1 185.32 $ | 7.88h | 8.38h | −0.50h (−6%) |
+| Outremont | 1 | 1x1 | 8.88h | 607.64 $ | 613.33 $ | 8.14h | 8.63h | −0.49h (−6%) |
+| Anjou | 1 | 1x4 | 9.61h | 2 391.05 $ | 2 396.74 $ | 8.69h | 8.96h | −0.27h (−3%) |
+| RDP | 2 | 1x8 / 1x7 | 9.65h | 8 691.71 $ | 8 702.24 $ | 7.33h | 8.43h | −1.10h (−13%) |
 
 Observation : On remarque que dans ce scénario, le coût total des opérations reste presque identique au scénario de base. En revanche, le planning du déneigement change complètement pour privilégier les habitants. Par exemple, dans Rivière-des-Prairies (RDP), 49 % de la population (52 000 habitants) a un accès dégagé vers un supermarché dès la 2e heure, alors que le scénario de base est à 0 % à la même heure. On retrouve ce même écart à Verdun : à la 4e heure, notre algorithme relie 70 % des habitants aux commerces (11 corridors sur 36 terminés), contre seulement 6 % pour le scénario 0\.
 
@@ -203,12 +212,12 @@ Risques :
 
 Résultats par arrondissement : 
 
-| Arrondissement | Dépôts | Dépôts x Déneigeuses | Durée | Prix | P90 S3 artères | P90 S0 artères | Gain P90 |
-| :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- |
-| Verdun | 1 | 1x2 | 8.66h | 1 175.53 $ | 5.61h | 6.01h | −0.40h (−7%) |
-| Outremont | 1 | 1x1 | 8.88h | 607.64 $ | 6.64h | 8.07h | −1.43h (−18%) |
-| Anjou | 1 | 1x4 | 9.79h | 2 393.13 $ | 6.91h | 7.81h | −0.91h (−12%) |
-| RDP | 2 | 1x6 / 1x5 | 9.98h | 6 630.09 $ | 5.82h | 7.80h | −1.97h (−25%) |
+| Arrondissement | Dépôts | Dépôts x Déneigeuses | Durée | Prix hors coût dépôt | Prix avec coût dépôt | P90 S3 artères | P90 S0 artères | Gain P90 |
+| :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- |
+| Verdun | 1 | 1x2 | 8.66h | 1 175.53 $ | 1 181.22 $ | 5.61h | 6.01h | −0.40h (−7%) |
+| Outremont | 1 | 1x1 | 8.88h | 607.64 $ | 613.33 $ | 6.64h | 8.07h | −1.43h (−18%) |
+| Anjou | 1 | 1x4 | 9.79h | 2 393.13 $ | 2 398.82 $ | 6.91h | 7.81h | −0.91h (−12%) |
+| RDP | 2 | 1x6 / 1x5 | 9.98h | 6 630.09 $ | 6 640.62 $ | 5.82h | 7.80h | −1.97h (−25%) |
 
 Sources :  
 1 \- [montrealtips](https://montrealtips.com/fr/2025/10/10/montreal-snowfall-how-much-snow-does-montreal-get-each-year-2025-update)  
