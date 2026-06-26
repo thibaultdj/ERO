@@ -70,7 +70,6 @@ def lancer_scenarios(G, nb_depots, scenarios_depots, scenarios_temps, tag_export
             depots_par_n[n] = depots
             _etape(f"{n} dépôt(s)  →  {depots}", t)
     else:
-        print("eeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
         t      = time.perf_counter()
         depots = suggerer_depots(G, nb_depots)
         depots_par_n[nb_depots] = depots
