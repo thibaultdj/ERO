@@ -160,14 +160,6 @@ def _fmt_config_vehicules(tournees, n_depots):
     parties = [f"{nb_dep}x{nb_veh}" for nb_veh, nb_dep in sorted(freq.items(), reverse=True)]
     return " / ".join(parties)
 
-def _cout_depot_jour(n):
-    import math
-    surface     = 30 * n + 15 * math.sqrt(n)
-    construction = surface * 1050
-    amort        = construction / (30 * 365)
-    maintenance  = 500 / 365
-    return amort + maintenance * n
-
 def mode_demo(sector, scenario_num, avec_fiches=False):
     T0 = time.perf_counter()
 
@@ -204,12 +196,10 @@ def mode_demo(sector, scenario_num, avec_fiches=False):
     config._VERBOSE = True
 
     cout_ope   = r.cout_total
-    cout_depot = _cout_depot_jour(n_depots)
-    cout_total = cout_ope + cout_depot
     config_veh = _fmt_config_vehicules(r.tournees, n_depots)
 
-    COL = [18, 10, 22, 14, 18, 18]
-    header = ["Arrondissement", "Dépôts", "Dépôts×Déneigeuses", "Durée max", "Prix opé ($)", "Prix total ($)"]
+    COL = [18, 10, 22, 14, 18]
+    header = ["Arrondissement", "Dépôts", "Dépôts×Déneigeuses", "Durée max", "Prix ($)"]
     sep_row = "  " + "  ".join("─" * c for c in COL)
 
     out("")
@@ -219,9 +209,8 @@ def mode_demo(sector, scenario_num, avec_fiches=False):
     arr_label   = sector.capitalize()
     duree_str   = f"{r.duree_max_h:.2f}h"
     prix_ope    = f"{cout_ope:,.2f} $".replace(",", " ")
-    prix_total  = f"{cout_total:,.2f} $".replace(",", " ")
 
-    row = [arr_label, str(n_depots), config_veh, duree_str, prix_ope, prix_total]
+    row = [arr_label, str(n_depots), config_veh, duree_str, prix_ope]
     out("  " + "  ".join(v.ljust(COL[i]) for i, v in enumerate(row)))
     out(sep_row)
 
