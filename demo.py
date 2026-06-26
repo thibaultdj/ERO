@@ -153,6 +153,19 @@ def _afficher_impact_hierarchie(out, clearing_s3, clearing_s0, priorite_orig, km
 
     out(f"  {SEP}")
 
+    def p90(clearing, priorite):
+        vals = sorted(t for (u, v), t in clearing.items() if priorite_orig.get((u, v), 3) == priorite)
+        return float(np.percentile(vals, 90)) if vals else float("inf")
+
+    p90_s3 = p90(clearing_s3, 1)
+    p90_s0 = p90(clearing_s0, 1)
+    gain     = p90_s0 - p90_s3
+    gain_pct = gain / p90_s0 * 100 if p90_s0 else 0
+    gain_str = f"−{gain:.2f}h (−{gain_pct:.0f}%)" if gain > 0 else f"+{-gain:.2f}h (+{-gain_pct:.0f}%)"
+    out(f"  P90 artères S3    : {p90_s3:.2f}h")
+    out(f"  P90 artères S0    : {p90_s0:.2f}h  (mêmes nombre de dépôts, sans priorisation)")
+    out(f"  Gain P90          : {gain_str}")
+
 def _fmt_config_vehicules(tournees, n_depots):
     from collections import Counter
     veh_par_depot = Counter(t.depot for t in tournees)
