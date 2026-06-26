@@ -6,7 +6,7 @@ from scipy.spatial import cKDTree
 import config
 from config import (
     VITESSE_KMH, COUT_PAR_KM, COUT_HORAIRE_NORMAL, COUT_HORAIRE_SUPP,
-    SEUIL_H, COUT_FIXE_JOUR,
+    SEUIL_H, COUT_FIXE_JOUR, JOURS_SAISON_DENEIGEMENT,
 )
 from cpp import cpp_oriente
 
@@ -42,8 +42,8 @@ def cout_tournee(distance_km):
 def cout_depot_jour(n):
     surface      = 30 * n + 15 * math.sqrt(n)
     construction = surface * 1050
-    amort        = construction / (30 * 365)
-    maintenance  = 500 / 365
+    amort        = construction / (30 * JOURS_SAISON_DENEIGEMENT)
+    maintenance  = 500 / JOURS_SAISON_DENEIGEMENT
     return amort + maintenance * n
 
 def subdiviser(G, aretes, nb, max_iter=15):

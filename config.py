@@ -7,6 +7,8 @@ COUT_HORAIRE_SUPP   = 1.3
 SEUIL_H             = 8.0
 VITESSE_KMH         = 10.0
 
+JOURS_SAISON_DENEIGEMENT = 120
+
 COUT_MAX    = None
 EXPORT_JSON = "resultat.json"
 
